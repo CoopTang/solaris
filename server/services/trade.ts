@@ -310,32 +310,32 @@ export default class TradeService extends EventEmitter {
         return eventObject;
     }
 
-    async sendStar(game: Game, playerId: DBObjectId, starId: DBObjectId, recipientId: DBObjectId) {
+    async sendStar(game: Game, fromPlayerId: DBObjectId, toPlayerId: DBObjectId, starId: DBObjectId) {
         // Alliance game only
         if (game.settings.diplomacy.enabled === 'disabled') {
             throw new ValidationError(`Cannot Gift Stars in Non-Alliance Games`)
         }
 
-        // Ensure recipient is an ally
-        if (this.diplomacyService.getDiplomaticStatusToPlayer(game, playerId, recipientId)) {
+        // Ensure toPlayer is an ally
+        if (this.diplomacyService.getDiplomaticStatusToPlayer(game, fromPlayerId, toPlayerId).actualStatus !== 'allies') {
             throw new ValidationError("Cannot Gift Stars to Non-Allied Players")
         }
         
         // Get the star.
         let star = game.galaxy.stars.find(x => x._id.toString() === starId.toString())!;
-
-        // Check the recipient.
-        if (this.hasPlayerCarrierInOrbit(game, star, recipientId)) {
+    
+        // Check the toPlayer.
+        if (this.hasPlayerCarrierInOrbit(game, star, toPlayerId)) {
             throw new ValidationError(`Recipient needs to have a carrier present to take star`)
         }
 
 
         // Check whether the star is owned by the player
-        if (this.isOwnedByPlayerId(star, playerId)) {
+        if (this.isOwnedByPlayerId(star, fromPlayerId)) {
             throw new ValidationError(`Cannot gift a star that is not owned by the player.`);
         }
 
-        star.ownedByPlayerId = recipientId;
+        star.ownedByPlayerId = toPlayerId;
         // Do we want to reset ships or transfer them too?
         // I would assume we would want to transfer them
         // star.shipsActual = 0;
