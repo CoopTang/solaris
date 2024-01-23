@@ -1,5 +1,79 @@
+import DiplomacyService from '../services/diplomacy';
 import StarService from '../services/star';
+import ValidationError from '../errors/validation';
+
 const starNames = require('../config/game/starNames');
+
+const _playerIdA: any = 1;
+const _playerAliasA: string = 'Player 1';
+
+const _playerIdB: any = 2;
+const _playerAliasB: string = 'Player 2';
+
+const _playerIdC: any = 3;
+const _playerAliasC: string = 'Player 3';
+
+const game: any = {
+    constants: {
+        star: {
+            resources: {
+                minNaturalResources: 10,
+                maxNaturalResources: 50
+            }
+        }
+    },
+    galaxy: {
+        players: [
+            {
+                _id: _playerIdA,
+                alias: _playerAliasA,
+                diplomacy: [
+                    {
+                        playerId: _playerIdB,
+                        status: "enemies"
+                    },
+                    {
+                        playerId: _playerIdC,
+                        status: "allies"
+                    }
+                ]
+            },
+            {
+                _id: _playerIdB,
+                alias: _playerAliasB,
+                diplomacy: [
+                    {
+                        playerId: _playerIdA,
+                        status: "allies"
+                    },
+                    {
+                        playerId: _playerIdC,
+                        status: "allies"
+                    }
+                ]
+            }
+            {
+                _id: _playerIdC,
+                alias: _playerAliasC,
+                diplomacy: [
+                    {
+                        playerId: _playerIdA,
+                        status: "enemies"
+                    },
+                    {
+                        playerId: _playerIdB,
+                        status: "allies"
+                    }
+                ]
+            }
+        ]
+    },
+    settings: {
+        diplomacy: {
+            enabled: 'enabled'
+        }
+    }
+};
 
 const fakeRandomService = {
     getRandomNumber(max) {
@@ -34,16 +108,9 @@ const fakeStarDistanceService = {
 
 }
 
-const game = {
-    constants: {
-        star: {
-            resources: {
-                minNaturalResources: 10,
-                maxNaturalResources: 50
-            }
-        }
-    }
-};
+const fakeEventRepo: any = {};
+const fakeDiplomacyUpkeepService: any = {};
+const fakeDiplomancyService = new DiplomacyService(game, fakeEventRepo, fakeDiplomacyUpkeepService);
 
 describe('star', () => {
 
@@ -51,7 +118,7 @@ describe('star', () => {
 
     beforeEach(() => {
         // @ts-ignore
-        starService = new StarService({}, fakeRandomService, fakeStarNameService, fakeDistanceService, fakeStarDistanceService);
+        starService = new StarService({}, fakeRandomService, fakeStarNameService, fakeDiplomancyService, fakeDistanceService, fakeStarDistanceService);
     });
 
     it('should generate an unowned star', () => {
@@ -142,5 +209,25 @@ describe('star', () => {
         expect(homeStar.infrastructure.industry).toEqual(gameSettings.player.startingInfrastructure.industry);
         expect(homeStar.infrastructure.science).toEqual(gameSettings.player.startingInfrastructure.science);
     });
+
+    describe("giftStar()", () {
+        beforeEach(() => {
+            // @ts-ignore
+            
+        });
+
+        it("should not allow gifts when aliiances are disabled", async () => {
+            game.settings.diplomacy.enabled = 'disabled'
     
+            await expectAsync(starService.giftStar(game, _playerIdA, {}, _playerIdB))
+                .toBeRejectedWithError(ValidationError, 'Cannot Gift Stars in Non-Alliance Games');
+        })
+        
+        it("should not gift star to unallied player", async () => {
+            game.settings.diplomacy.enabled = 'enabled'
+    
+            await expectAsync(starService.giftStar(game, _playerIdA, {}, _playerIdB))
+                .toBeRejectedWithError(ValidationError, "Cannot Gift Stars to Non-Allied Players");
+        })
+    }
 });

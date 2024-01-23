@@ -158,6 +158,21 @@ export default (container: DependencyContainer) => {
                 return next(err);
             }
         },
+        gift: async (req, res, next) => {
+            try {
+                const reqObj = mapToStarGiftStarRequest(req.body);
+
+                await container.starService.giftStar(
+                    req.game,
+                    req.player._id,
+                    reqObj.starId,
+                    reqObj.recipientId);
+                
+                return res.sendStatus(200);
+            } catch (err) {
+                return next(err);
+            }
+        },
         toggleBulkIgnore: async (req, res, next) => {
             try {
                 const reqObj = mapToStarToggleBulkIgnoreStatusRequest(req.body);

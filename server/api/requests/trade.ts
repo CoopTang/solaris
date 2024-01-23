@@ -84,3 +84,28 @@ export const mapToTradeSendTechnologyToPlayerRequest = (body: any): TradeSendTec
         level: body.level
     }
 };
+
+export interface TradeSendStarToPlayerRequest {
+    toPlayerId: DBObjectId,
+    starId: DBObjectId,
+}
+
+export const mapToTradeSendStarToPlayerRequest = (body: any): TradeSendStarToPlayerRequest => {
+    let errors: string[] = [];
+
+    if (!keyHasStringValue(body, 'toPlayerId')) {
+        errors.push('toPlayerId is required');
+    }
+    if (!keyHasStringValue(body, 'starId')) {
+        errors.push('starId is required');
+    }
+
+    if (errors.length) {
+        throw new ValidationError(errors);
+    }
+    
+    return {
+        toPlayerId: body.toPlayerId,
+        starId: body.starId,
+    }
+}

@@ -310,6 +310,48 @@ export default class TradeService extends EventEmitter {
         return eventObject;
     }
 
+    async sendStar(game: Game, playerId: DBObjectId, starId: DBObjectId, recipientId: DBObjectId) {
+        // Alliance game only
+        if (game.settings.diplomacy.enabled === 'disabled') {
+            throw new ValidationError(`Cannot Gift Stars in Non-Alliance Games`)
+        }
+
+        // Ensure recipient is an ally
+        if (this.diplomacyService.getDiplomaticStatusToPlayer(game, playerId, recipientId)) {
+            throw new ValidationError("Cannot Gift Stars to Non-Allied Players")
+        }
+        
+        // Get the star.
+        let star = game.galaxy.stars.find(x => x._id.toString() === starId.toString())!;
+
+        // Check the recipient.
+        if (this.hasPlayerCarrierInOrbit(game, star, recipientId)) {
+            throw new ValidationError(`Recipient needs to have a carrier present to take star`)
+        }
+
+
+        // Check whether the star is owned by the player
+        if (this.isOwnedByPlayerId(star, playerId)) {
+            throw new ValidationError(`Cannot gift a star that is not owned by the player.`);
+        }
+
+        star.ownedByPlayerId = recipientId;
+        // Do we want to reset ships or transfer them too?
+        // I would assume we would want to transfer them
+        // star.shipsActual = 0;
+        // star.ships = 0;
+
+        // Reset the ignore bulk upgrade statuses as it has been captured by a new player.
+        this.resetIgnoreBulkUpgradeStatuses(star);
+
+        // Make sure king of the hill resets properly
+        if (this.gameTypeService.isKingOfTheHillMode(game) && 
+            this.gameStateService.isCountingDownToEndInLastCycle(game) &&
+            this.isKingOfTheHillStar(star)) {
+            this.gameStateService.setCountdownToEndToOneCycle(game);
+        }
+    }
+
     async sendTechnology(game: Game, fromPlayer: Player, toPlayerId: DBObjectId, technology: ResearchTypeNotRandom, techLevel: number) {
         if (this.isTradingTechnologyDisabled(game)) {
             throw new ValidationError(`Trading technology is disabled.`);

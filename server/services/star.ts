@@ -10,6 +10,7 @@ import { MapObject, MapObjectWithVisibility } from './types/Map';
 import { Player } from './types/Player';
 import { InfrastructureType, NaturalResources, Star, StarCaptureResult, TerraformedResources } from './types/Star';
 import { User } from './types/User';
+import DiplomacyService from './diplomacy';
 import DistanceService from './distance';
 import GameStateService from './gameState';
 import GameTypeService from './gameType';
@@ -32,6 +33,7 @@ export default class StarService extends EventEmitter {
     gameRepo: Repository<Game>;
     randomService: RandomService;
     nameService: NameService;
+    diplomacyService: DiplomacyService;
     distanceService: DistanceService;
     starDistanceService: StarDistanceService;
     technologyService: TechnologyService;
@@ -44,6 +46,7 @@ export default class StarService extends EventEmitter {
         gameRepo: Repository<Game>,
         randomService: RandomService,
         nameService: NameService,
+        diplomacyService: DiplomacyService,
         distanceService: DistanceService,
         starDistanceService: StarDistanceService,
         technologyService: TechnologyService,
@@ -57,6 +60,7 @@ export default class StarService extends EventEmitter {
         this.gameRepo = gameRepo;
         this.randomService = randomService;
         this.nameService = nameService;
+        this.diplomacyService = diplomacyService;
         this.distanceService = distanceService;
         this.starDistanceService = starDistanceService;
         this.technologyService = technologyService;
@@ -182,6 +186,10 @@ export default class StarService extends EventEmitter {
 
     isOwnedByPlayer(star: Star, player: Player) {
         return star.ownedByPlayerId && star.ownedByPlayerId.toString() === player._id.toString();
+    }
+
+    isOwnedByPlayerId(star: Star, playerId: DBObjectId) {
+        return star.ownedByPlayerId && star.ownedByPlayerId.toString() === playerId.toString();
     }
 
     listStarsAliveOwnedByPlayer(stars: Star[], playerId: DBObjectId) {
@@ -897,5 +905,47 @@ export default class StarService extends EventEmitter {
             starA.specialistId = null;
             starB.specialistId = null;
         }
+    }
+
+    async giftStar(game: Game, playerId: DBObjectId, starId: DBObjectId, recipientId: DBObjectId) {
+        // Alliance game only
+        if (game.settings.diplomacy.enabled === 'disabled') {
+            throw new ValidationError(`Cannot Gift Stars in Non-Alliance Games`)
+        }
+
+        // Ensure recipient is an ally
+        if (this.diplomacyService.getDiplomaticStatusToPlayer(game, playerId, recipientId)) {
+            throw new ValidationError("Cannot Gift Stars to Non-Allied Players")
+        }
+        
+        // Get the star.
+        let star = game.galaxy.stars.find(x => x._id.toString() === starId.toString())!;
+
+        // Check the recipient.
+        if (this.hasPlayerCarrierInOrbit(game, star, recipientId)) {
+            throw new ValidationError(`Recipient needs to have a carrier present to take star`)
+        }
+
+
+        // Check whether the star is owned by the player
+        if (this.isOwnedByPlayerId(star, playerId)) {
+            throw new ValidationError(`Cannot gift a star that is not owned by the player.`);
+        }
+
+        star.ownedByPlayerId = recipientId;
+        // Do we want to reset ships or transfer them too?
+        // I would assume we would want to transfer them
+        // star.shipsActual = 0;
+        // star.ships = 0;
+
+        // Reset the ignore bulk upgrade statuses as it has been captured by a new player.
+        this.resetIgnoreBulkUpgradeStatuses(star);
+
+        // Make sure king of the hill resets properly
+        if (this.gameTypeService.isKingOfTheHillMode(game) && 
+        this.gameStateService.isCountingDownToEndInLastCycle(game) &&
+        this.isKingOfTheHillStar(star)) {
+        this.gameStateService.setCountdownToEndToOneCycle(game);
+    }
     }
 }
